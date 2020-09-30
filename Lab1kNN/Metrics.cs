@@ -17,7 +17,7 @@ namespace Lab1kNN
         static double Manhattan(List<double> x, List<double> y)
         {
             double ans = 0.0;
-            for (int i = 0; i < x.Count - 1; i++)
+            for (int i = 0; i < x.Count; i++)
             {
                 ans += Math.Abs(x[i] - y[i]);
             }
@@ -27,7 +27,7 @@ namespace Lab1kNN
         static double Euclidean(List<double> x, List<double> y)
         {
             double ans = 0.0;
-            for (int i = 0; i < x.Count - 1; i++)
+            for (int i = 0; i < x.Count; i++)
             {
                 ans += (x[i] - y[i]) * (x[i] - y[i]);
             }
@@ -37,7 +37,7 @@ namespace Lab1kNN
         static double Chebyshev(List<double> x, List<double> y)
         {
             double ans = 0.0;
-            for (int i = 0; i < x.Count - 1; i++)
+            for (int i = 0; i < x.Count; i++)
             {
                 ans = Math.Max(ans, Math.Abs(x[i] - y[i]));
             }

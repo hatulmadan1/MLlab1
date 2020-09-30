@@ -27,12 +27,12 @@ namespace Lab1kNN
         }
         void FillConfusionMatrixNaive()
         {
-            List<List<double>> dataWithout = new List<List<double>>(Program.data);
+            List<DataItem> dataWithout = new List<DataItem>(Program.data);
             for (int i = 0; i < Program.data.Count; i++)
             {
-                int realClass = (int)Program.data[i].Last();
+                int realClass = (int)Program.data[i].RealClass;
                 dataWithout.Remove(Program.data[i]);
-                int predictedClass = NaiveConverting.RegressionToClassification(Execute(dataWithout, Program.data[i]));
+                int predictedClass = NaiveConverting.RegressionToClassification(Execute(dataWithout, Program.data[i].Features, -1));
                 dataWithout.Add(Program.data[i]);
 
                 ConfusionMatrix[realClass, predictedClass]++;
@@ -42,36 +42,22 @@ namespace Lab1kNN
 
         void FillConfusionMatrixOneHot()
         {
-            List<List<double>> dataWithout = new List<List<double>>(Program.data.AsReadOnly());
+            List<DataItem> dataWithout = new List<DataItem>(Program.data.AsReadOnly());
             foreach (var dataString in Program.data)
             {
                 dataWithout.Remove(dataString);
-                int realClass = (int)dataString.Last();
+                int realClass = (int)dataString.RealClass;
                 //Console.WriteLine(realClass);
-                int classInd = 0;
                 double predictData = 0.0;
                 int predictedClass = 0;
-                foreach (var binaryClassification in OneHotConverting.GetBinaryClassificator(dataWithout.AsReadOnly(), out List<double> classList))
+                for (int i = 0; i < DataItem.OneHotClasses.Count; i++)
                 {
-                    List<List<double>> dataToBeSent = new List<List<double>>();
-                    for (int i = 0; i < dataWithout.Count; i++)
-                    {
-                        dataToBeSent.Add(new List<double>());
-                        for (int j = 0; j < dataWithout[i].Count - 1; j++)
-                        {
-                            dataToBeSent.Last().Add(dataWithout[i][j]);
-                        }
-                        dataToBeSent.Last().Add(binaryClassification[i]);
-                    }
-
-                    double predict = Execute(dataToBeSent, dataString);
+                    double predict = Execute(dataWithout, dataString.Features, i);
                     if (predict >= predictData)
                     {
                         predictData = predict;
-                        predictedClass = (int)classList[classInd];
+                        predictedClass = (int)DataItem.OneHotClasses[i];
                     }
-
-                    classInd++;
                 }
 
                 confusionMatrixSum++;
@@ -80,14 +66,15 @@ namespace Lab1kNN
             }
         }
 
-        private double Execute(IReadOnlyList<List<double>> data, List<double> query)
+        private double Execute(IReadOnlyList<DataItem> data, List<double> query, int classId)
         {
             List<double> dists = new List<double>();
             List<double> distsToBeOrdered = new List<double>();
+            double classValue;
 
             foreach (var dataString in data)
             {
-                dists.Add(Metrics.MetricFuncs[metric].Invoke(dataString, query));
+                dists.Add(Metrics.MetricFuncs[metric].Invoke(dataString.Features, query));
                 if (!windowTypeFixed)
                 {
                     distsToBeOrdered.Add(dists.Last());
@@ -99,6 +86,10 @@ namespace Lab1kNN
             {
                 distsToBeOrdered.Sort();
                 _windowSize = distsToBeOrdered[distsToBeOrdered.Count - (int)windowSize];
+            }
+            else
+            {
+                _windowSize = windowSize;
             }
 
             double resultky = 0, resultk = 0;
@@ -116,8 +107,9 @@ namespace Lab1kNN
                 double u = sameWithQuery ? 0 : dists[i] / windowSize;
 
                 ker = Kernels.KernelFuncs[kernel].Invoke(u);
+                classValue = classId == -1 ? data[i].RealClass : data[i].OneHotClassification[classId];
 
-                resultky += ker * data[i].Last();
+                resultky += ker * classValue;
                 resultk += ker;
             }
 
@@ -126,7 +118,8 @@ namespace Lab1kNN
                 double res = 0.0;
                 foreach (var dataString in data)
                 {
-                    res += dataString.Last();
+                    classValue = classId == -1 ? dataString.RealClass : dataString.OneHotClassification[classId];
+                    res += classValue;
                 }
                 return res / data.Count;
             }

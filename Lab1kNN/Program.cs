@@ -8,18 +8,18 @@ namespace Lab1kNN
 {
     class Program
     {
-        public static List<List<Double>> data;
+        public static List<DataItem> data;
         public static HashSet<double> classes;
 
         static void Main(string[] args)
         {
-            data = new List<List<double>>();
+            data = new List<DataItem>();
             classes = new HashSet<double>();
             ReadData(out var min, out var max);
+            DataItem.OneHotClasses = classes.ToList();
             NormalizeData(min, max);
-            Brutforce.OneHotConvertingBrutforce();
-            Brutforce.NaiveConvertingBrutforce();
-            
+            OneHotConverting.FillBinaryClassification(); 
+            Brutforce.BrutforceBoth();
         }
 
         private static void ReadData(out double min, out double max)
@@ -34,22 +34,29 @@ namespace Lab1kNN
                     var values = line?.Split(',');
                     if (Double.TryParse(values?[0], out _))
                     {
-                        data.Add(new List<double>());
+                        data.Add(new DataItem());
                     }
                     else
                     {
                         continue;
                     }
 
-                    foreach (var value in values)
+                    for (int i = 0; i < values.Length; i++)
                     {
-                        Double.TryParse(value, out var val);
-                        data.Last().Add(val);
-                        min = Math.Min(min, val);
-                        max = Math.Max(max, val);
-                        //classes.Add(val);
+                        Double.TryParse(values[i], out var val);
+                        if (i != values.Length - 1)
+                        {
+                            data.Last().Features.Add(val);
+                            min = Math.Min(min, val);
+                            max = Math.Max(max, val);
+                        }
+                        else
+                        {
+                            data.Last().RealClass = (val);
+                            classes.Add(val);
+                        }
                     }
-                    classes.Add(data.Last().Last());
+                    
                 }
             }
         }
@@ -58,9 +65,9 @@ namespace Lab1kNN
         {
             foreach (var dataString in data)
             {
-                for (int i = 0; i < dataString.Count - 1; i++)
+                for (int i = 0; i < dataString.Features.Count - 1; i++)
                 {
-                    dataString[i] -= min;
+                    dataString.Features[i] -= min;
                 }
             }
         }
