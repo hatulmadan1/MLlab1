@@ -60,11 +60,11 @@ namespace Lab1kNN
                     tasks.Add(new Task(() => DoLogic(kernel, metric, i2, true, false)));
                 }
 
-                Parallel.ForEach(tasks, log);
+                Parallel.ForEach(tasks, StartTasksAsync);
             }
         }
 
-        private static void log(Task task)
+        private static void StartTasksAsync(Task task)
         {
             task.Start();
         }
@@ -75,6 +75,14 @@ namespace Lab1kNN
             executor.ComputeFMeasure(out double micro, out double macro);
 
             mutex.WaitOne();
+            if (kernel.Equals("Triweight") && isNaive && winTypeFixed && metric.Equals("Manhattan"))
+            {
+                Program.Naive.Add(i, macro);
+            }
+            if (kernel.Equals("Triweight") && !isNaive && winTypeFixed && metric.Equals("Manhattan"))
+            {
+                Program.OneHot.Add(i, macro);
+            }
             if (macro > maxMacro || micro > maxMicro)
             {
                 Console.WriteLine("{0} {1} {5} {2} {6}\nMicro: {3}\nMacro: {4}", metric, kernel, i, micro, macro, (winTypeFixed ? "fixed" : "variable"), (isNaive ? "naive" : "onehot"));
