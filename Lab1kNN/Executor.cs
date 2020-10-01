@@ -1,135 +1,36 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace Lab1kNN
 {
     public class Executor
     {
-        private const int dataSetSize = 488;
         private double[,] ConfusionMatrix;
-        private double confusionMatrixSum;
         private string metric;
         private string kernel;
         private bool windowTypeFixed;
         private double windowSize;
         private readonly int cmsize = 0;
+        private bool isNaive;
+        public Mutex mutex = new Mutex();
 
-        public Executor(string metric, string kernel, bool windowTypeFixed, double windowSize)
+        public Executor(string metric, string kernel, bool windowTypeFixed, double windowSize, bool isNaive)
         {
             cmsize = (int) Program.classes.Max() + 1;
             ConfusionMatrix = new double[cmsize, cmsize];
-            confusionMatrixSum = 0;
             this.windowSize = windowSize;
             this.metric = metric;
             this.kernel = kernel;
             this.windowTypeFixed = windowTypeFixed;
+            this.isNaive = isNaive;
         }
-        void FillConfusionMatrixNaive()
+        public void ComputeFMeasure(out double micro, out double macro)
         {
-            List<DataItem> dataWithout = new List<DataItem>(Program.data);
-            for (int i = 0; i < Program.data.Count; i++)
-            {
-                int realClass = (int)Program.data[i].RealClass;
-                dataWithout.Remove(Program.data[i]);
-                int predictedClass = NaiveConverting.RegressionToClassification(Execute(dataWithout, Program.data[i].Features, -1));
-                dataWithout.Add(Program.data[i]);
-
-                ConfusionMatrix[realClass, predictedClass]++;
-                confusionMatrixSum++;
-            }
-        }
-
-        void FillConfusionMatrixOneHot()
-        {
-            List<DataItem> dataWithout = new List<DataItem>(Program.data.AsReadOnly());
-            foreach (var dataString in Program.data)
-            {
-                dataWithout.Remove(dataString);
-                int realClass = (int)dataString.RealClass;
-                //Console.WriteLine(realClass);
-                double predictData = 0.0;
-                int predictedClass = 0;
-                for (int i = 0; i < DataItem.OneHotClasses.Count; i++)
-                {
-                    double predict = Execute(dataWithout, dataString.Features, i);
-                    if (predict >= predictData)
-                    {
-                        predictData = predict;
-                        predictedClass = (int)DataItem.OneHotClasses[i];
-                    }
-                }
-
-                confusionMatrixSum++;
-                ConfusionMatrix[realClass, predictedClass]++;
-                dataWithout.Add(dataString);
-            }
-        }
-
-        private double Execute(IReadOnlyList<DataItem> data, List<double> query, int classId)
-        {
-            List<double> dists = new List<double>();
-            List<double> distsToBeOrdered = new List<double>();
-            double classValue;
-
-            foreach (var dataString in data)
-            {
-                dists.Add(Metrics.MetricFuncs[metric].Invoke(dataString.Features, query));
-                if (!windowTypeFixed)
-                {
-                    distsToBeOrdered.Add(dists.Last());
-                }
-            }
-
-            double _windowSize = 0;
-            if (!windowTypeFixed)
-            {
-                distsToBeOrdered.Sort();
-                _windowSize = distsToBeOrdered[distsToBeOrdered.Count - (int)windowSize];
-            }
-            else
-            {
-                _windowSize = windowSize;
-            }
-
-            double resultky = 0, resultk = 0;
-            bool sameWithQuery = false;
-
-            for (int i = 0; i < data.Count; i++)
-            {
-                double ker;
-
-                if (_windowSize == 0 && dists[i] != 0)
-                {
-                    continue;
-                }
-                sameWithQuery = _windowSize == 0 && dists[i] == 0;
-                double u = sameWithQuery ? 0 : dists[i] / windowSize;
-
-                ker = Kernels.KernelFuncs[kernel].Invoke(u);
-                classValue = classId == -1 ? data[i].RealClass : data[i].OneHotClassification[classId];
-
-                resultky += ker * classValue;
-                resultk += ker;
-            }
-
-            if ((windowSize == 0 && !sameWithQuery) || resultk == 0)
-            {
-                double res = 0.0;
-                foreach (var dataString in data)
-                {
-                    classValue = classId == -1 ? dataString.RealClass : dataString.OneHotClassification[classId];
-                    res += classValue;
-                }
-                return res / data.Count;
-            }
-            return resultky / resultk;
-        }
-
-        public void ComputeFMeasure(bool isNaive, out double micro, out double macro)
-        {
-            if (isNaive) FillConfusionMatrixNaive();
-            else FillConfusionMatrixOneHot();
+            FillConfusionMatrix();
+            double confusionMatrixSum = Program.data.Count;
             double[] c = new double[cmsize], p = new double[cmsize], t = new double[cmsize];
 
             for (int i = 0; i < cmsize; i++)
@@ -164,6 +65,107 @@ namespace Lab1kNN
                 micro += (rec + prec) == 0 ? 0 : (2 * rec * prec / (prec + rec)) * c[i];
             }
             micro = confusionMatrixSum == 0 ? 0 : micro / confusionMatrixSum;
+        }
+        private void FillConfusionMatrix()
+        {
+            Parallel.For(0, Program.data.Count, ComputePredict);
+        }
+
+        private void ComputePredict(int i)
+        {
+                int realClass = (int)Program.data[i].RealClass;
+                int predictedClass = 0;
+                if (isNaive)
+                {
+                    predictedClass = NaiveConverting.RegressionToClassification(Execute(i, -1));
+                }
+                else
+                {
+                    double predictData = 0.0;
+                    for (int j = 0; j < DataItem.OneHotClasses.Count; j++)
+                    {
+                        double predict = Execute(i, j);
+                        if (predict >= predictData)
+                        {
+                            predictData = predict;
+                            predictedClass = (int)DataItem.OneHotClasses[j];
+                        }
+                    }
+                }
+
+                mutex.WaitOne();
+                ConfusionMatrix[realClass, predictedClass]++;
+                mutex.ReleaseMutex();
+        }
+
+        private double Execute(int queryStringId, int classId)
+        {
+            IReadOnlyList<double> query = Program.data[queryStringId].Features.AsReadOnly();
+            List<double> dists = new List<double>();
+            List<double> distsToBeOrdered = new List<double>();
+            double classValue;
+
+            for (int i = 0; i < Program.data.Count; i++)
+            {
+                dists.Add(Metrics.MetricFuncs[metric].Invoke(Program.data[i].Features, query));
+                if (!windowTypeFixed)
+                {
+                    distsToBeOrdered.Add(dists.Last());
+                }
+            }
+
+            double _windowSize = 0;
+            if (!windowTypeFixed)
+            {
+                distsToBeOrdered.Sort();
+                _windowSize = distsToBeOrdered[distsToBeOrdered.Count - (int)windowSize];
+            }
+            else
+            {
+                _windowSize = windowSize;
+            }
+
+            double resultky = 0, resultk = 0;
+            bool sameWithQuery = false;
+
+            for (int i = 0; i < Program.data.Count; i++)
+            {
+                if (i == queryStringId)
+                {
+                    continue;
+                }
+                
+                if (_windowSize == 0 && dists[i] != 0)
+                {
+                    continue;
+                }
+
+                double ker;
+                sameWithQuery = _windowSize == 0 && dists[i] == 0;
+                double u = sameWithQuery ? 0 : dists[i] / windowSize;
+
+                ker = Kernels.KernelFuncs[kernel].Invoke(u);
+                classValue = classId == -1 ? Program.data[i].RealClass : Program.data[i].OneHotClassification[classId];
+
+                resultky += ker * classValue;
+                resultk += ker;
+            }
+
+            if ((windowSize == 0 && !sameWithQuery) || resultk == 0)
+            {
+                double res = 0.0;
+                for (int i = 0; i < Program.data.Count; i++)
+                {
+                    if (i == queryStringId)
+                    {
+                        continue;
+                    }
+                    classValue = classId == -1 ? Program.data[i].RealClass : Program.data[i].OneHotClassification[classId];
+                    res += classValue;
+                }
+                return res / (Program.data.Count - 1);
+            }
+            return resultky / resultk;
         }
     }
 }

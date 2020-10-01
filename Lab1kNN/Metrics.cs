@@ -6,15 +6,15 @@ namespace Lab1kNN
 {
     public static class Metrics
     {
-        public static Dictionary<string, Func<List<double>, List<double>, double>> MetricFuncs = 
-            new Dictionary<string, Func<List<double>, List<double>, double>>()
+        public static Dictionary<string, Func<IReadOnlyList<double>, IReadOnlyList<double>, double>> MetricFuncs = 
+            new Dictionary<string, Func<IReadOnlyList<double>, IReadOnlyList<double>, double>>()
             {
                 {"Manhattan", Manhattan},
                 {"Euclidean", Euclidean},
                 {"Chebyshev", Chebyshev}
             };
 
-        static double Manhattan(List<double> x, List<double> y)
+        static double Manhattan(IReadOnlyList<double> x, IReadOnlyList<double> y)
         {
             double ans = 0.0;
             for (int i = 0; i < x.Count; i++)
@@ -24,7 +24,7 @@ namespace Lab1kNN
             return ans;
         }
 
-        static double Euclidean(List<double> x, List<double> y)
+        static double Euclidean(IReadOnlyList<double> x, IReadOnlyList<double> y)
         {
             double ans = 0.0;
             for (int i = 0; i < x.Count; i++)
@@ -34,7 +34,7 @@ namespace Lab1kNN
             return Math.Sqrt(ans);
         }
 
-        static double Chebyshev(List<double> x, List<double> y)
+        static double Chebyshev(IReadOnlyList<double> x, IReadOnlyList<double> y)
         {
             double ans = 0.0;
             for (int i = 0; i < x.Count; i++)

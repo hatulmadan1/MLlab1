@@ -13,6 +13,7 @@ namespace Lab1kNN
 
         static void Main(string[] args)
         {
+            DateTime start = DateTime.Now;
             data = new List<DataItem>();
             classes = new HashSet<double>();
             ReadData(out var min, out var max);
@@ -20,13 +21,14 @@ namespace Lab1kNN
             NormalizeData(min, max);
             OneHotConverting.FillBinaryClassification(); 
             Brutforce.BrutforceBoth();
+            Console.WriteLine(DateTime.Now - start);
         }
 
         private static void ReadData(out double min, out double max)
         {
             max = 0.0;
             min = Double.MaxValue;
-            using (var reader = new StreamReader(@"..\..\..\..\..\ESL.csv"))
+            using (var reader = new StreamReader(@"..\..\..\ESL.csv"))
             {
                 while (!reader.EndOfStream)
                 {
